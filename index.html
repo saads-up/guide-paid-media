@@ -1662,12 +1662,17 @@ body.reader-fullscreen .reader-canvas {
   .reader-shortcuts,
   .reader-minimap,
   .reader-search,
+  .toc-drawer,
+  .toc-drawer-backdrop,
   #flipbookOverlay { display: none !important; }
   body { background: #fff !important; }
-  #readerCanvas { display: flex !important; padding-top: 0 !important; }
-  .reader-canvas .pagedjs_page { display: block !important; zoom: 1 !important; margin-bottom: 0 !important; box-shadow: none !important; }
-  /* The running head + folio are now REAL injected text in PagedJS's margin boxes,
-     so they print correctly. We only neutralise the native @page margins so each
+  /* Flush, full-width block layout so each A4 page bleeds to the sheet edges
+     (no scroll-mode centering margins -> no white sliver on the cover/dividers). */
+  #readerCanvas { display: block !important; padding: 0 !important; margin: 0 !important; }
+  .pagedjs_pages { display: block !important; }
+  .reader-canvas .pagedjs_page { display: block !important; zoom: 1 !important; margin: 0 auto !important; box-shadow: none !important; }
+  /* The running head + folio are REAL injected text in PagedJS's margin boxes,
+     so they print correctly. Neutralise the native @page margins so each
      A4 .pagedjs_page fills its sheet exactly (its margins are already built in). */
   @page { margin: 0 !important; }
 }
