@@ -9,8 +9,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;700&family=Poppins:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-<!-- StPageFlip (page-flip@2.0.7, MIT) — vrai effet papier ; épinglé par hash SRI -->
-<script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.js" integrity="sha384-L4eWrYFdqQ+LoGA0MMuqLqzV13x7SKkQaqacy4MED8e815dS37tTKlO/6xBEUpZW" crossorigin="anonymous"></script>
+<!-- Vrai page-curl papier : Three.js (maillage 3D déformé par shader) + html2canvas (page -> texture). MIT, épinglés par hash SRI. -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js" integrity="sha384-qOkzR5Ke/XkQxuGVJ9hpFEpDlcoLtWwVYhnJf06cLIZa2vaIptSqaubivErzmD5O" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous"></script>
 <style>
 /* ═══════════════════════════════════════════════════════════════════════
    DESIGN SYSTEM - Ad's up Consulting Book Layout
@@ -1448,24 +1449,30 @@ body.mode-spread .reader-canvas .pagedjs_page.active-page-right { display: block
 /* Mode: scroll - show all pages flowing */
 body.mode-scroll .reader-canvas .pagedjs_page { display: block; }
 
-/* Mode: flip - real paper page-curl via StPageFlip, rendered in an isolated overlay */
+/* Mode: flip - real paper page-curl (Three.js + html2canvas) in an isolated overlay */
 body.mode-flip #readerCanvas { display: none; }
 .flipbook-overlay {
   display: none;
   position: fixed;
   top: 52px; left: 0; right: 0; bottom: 0;
-  background: #e7e2db;
+  background: radial-gradient(120% 120% at 50% 35%, #efeae3 0%, #ddd6cd 100%);
   z-index: 40;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   -webkit-user-select: none; user-select: none;
+  touch-action: none;
 }
 body.mode-flip .flipbook-overlay { display: flex; }
-#flipbook { margin: 0 auto; }
-.flip-page { background: #ffffff; overflow: hidden; }
-.flip-page .pagedjs_page { transform-origin: top left; margin: 0 !important; box-shadow: none !important; }
-.stf__parent { margin: 0 auto; }
+#curlCanvas { display: block; cursor: grab; }
+#curlCanvas:active { cursor: grabbing; }
+.flip-hint {
+  position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+  font-family: 'Inter', sans-serif; font-size: 12px; color: #8a8178;
+  background: rgba(255,255,255,0.7); padding: 5px 12px; border-radius: 20px;
+  pointer-events: none; transition: opacity 0.4s; backdrop-filter: blur(4px);
+}
+.flip-hint.gone { opacity: 0; }
 
 /* In-book full-text search */
 .reader-search {
@@ -1844,8 +1851,11 @@ h2, h3 { break-after: avoid; }
   <div class="reader-search-results" id="searchResults"></div>
 </div>
 
-<!-- Flipbook overlay: StPageFlip renders the real paper page-curl here in "Feuilleter" mode -->
-<div class="flipbook-overlay" id="flipbookOverlay"><div id="flipbook"></div></div>
+<!-- Flipbook overlay: a WebGL page-curl (Three.js) renders here in "Feuilleter" mode -->
+<div class="flipbook-overlay" id="flipbookOverlay">
+  <canvas id="curlCanvas"></canvas>
+  <div class="flip-hint" id="flipHint">Glissez pour tourner la page</div>
+</div>
 
 <!-- Side navigation arrows -->
 <div class="reader-nav-arrow left" id="navLeft">
@@ -5350,7 +5360,7 @@ function initReader(flow) {
     bindEvents();
     window.addEventListener('resize', function() {
       requestAnimationFrame(function() {
-        if (mode === 'flip') { enterFlip(); }
+        if (mode === 'flip') { curl.relayout(); }
         else { goToPage(currentPage); autoFit(); }
       });
     });
@@ -5422,21 +5432,22 @@ function initReader(flow) {
   }
 
   function nextPage() {
-    if (mode === 'flip' && pageFlip) { pageFlip.flipNext('top'); return; }
+    if (mode === 'flip') { curl.next(); return; }
     var step = twoUp() ? 2 : 1;
     goToPage(currentPage + step);
   }
 
   function prevPage() {
-    if (mode === 'flip' && pageFlip) { pageFlip.flipPrev('bottom'); return; }
+    if (mode === 'flip') { curl.prev(); return; }
     var step = twoUp() ? 2 : 1;
     goToPage(currentPage - step);
   }
 
   // --- UI Update ---
   function updateUI() {
+    var spreadView = (mode === 'spread') && !isNarrow();   // flip = single-page curl
     var display;
-    if (twoUp()) {
+    if (spreadView) {
       display = '<strong>' + (currentPage + 1) + '-' + Math.min(currentPage + 2, totalPages) + '</strong> / ' + totalPages;
     } else {
       display = '<strong>' + (currentPage + 1) + '</strong> / ' + totalPages;
@@ -5448,7 +5459,7 @@ function initReader(flow) {
 
     // Minimap current
     document.querySelectorAll('.minimap-item').forEach(function(mi, i) {
-      mi.classList.toggle('current', i === currentPage || (twoUp() && i === currentPage + 1));
+      mi.classList.toggle('current', i === currentPage || (spreadView && i === currentPage + 1));
     });
   }
 
@@ -5648,77 +5659,253 @@ function initReader(flow) {
     });
   }
 
-  // --- Real paper flipbook (StPageFlip overlay) ---
-  var pageFlip = null;                                  // St.PageFlip instance
-  var flipMount = document.getElementById('flipbook');
-  var flipOverlay = document.getElementById('flipbookOverlay');
+  // --- Real paper page-curl (Three.js mesh deformation + html2canvas textures) ---
+  var curl = (function() {
+    var PW = 794, PH = 1123, RATIO = PH / PW;
+    var overlay = document.getElementById('flipbookOverlay');
+    var canvasEl = document.getElementById('curlCanvas');
+    var hint = document.getElementById('flipHint');
+    var renderer = null, scene = null, cam = null;
+    var backMesh = null, frontMesh = null, frontMat = null;
+    var texCache = {};                       // page idx -> THREE.CanvasTexture
+    var pw = 0, ph = 0;                      // page display size (px)
+    var progress = 0, dir = 1, animating = false, dragging = false;
+    var busy = false, ready = false;
 
-  function flipLeafSize() {
-    var ow = flipOverlay.clientWidth || window.innerWidth;
-    var oh = flipOverlay.clientHeight || (window.innerHeight - 52);
-    var ratio = 1123 / 794;            // A4 height / width
-    var padV = 28, padH = 20;
-    var maxH = oh - padV * 2;
-    var portrait = isNarrow();
-    var fpw;
-    if (portrait) {
-      fpw = Math.min(ow - padH * 2, maxH / ratio);
-    } else {
-      fpw = Math.min((ow - padH * 2) / 2, maxH / ratio);
+    function ok() {
+      try {
+        if (typeof THREE === 'undefined' || typeof html2canvas === 'undefined') return false;
+        var c = document.createElement('canvas');
+        return !!(c.getContext('webgl') || c.getContext('experimental-webgl'));
+      } catch (e) { return false; }
     }
-    fpw = Math.max(220, fpw);
-    return { w: Math.round(fpw), h: Math.round(fpw * ratio) };
-  }
 
-  function buildFlipClones() {
-    flipMount.innerHTML = '';
-    pages.forEach(function(p) {
-      var leaf = document.createElement('div');
-      leaf.className = 'flip-page';
-      var clone = p.cloneNode(true);
-      clone.removeAttribute('id');
-      clone.style.zoom = '1';
-      leaf.appendChild(clone);
-      flipMount.appendChild(leaf);
-    });
-  }
+    function rasterize(idx) {
+      if (idx < 0 || idx >= totalPages) return Promise.resolve(null);
+      if (texCache[idx]) return Promise.resolve(texCache[idx]);
+      var src = pages[idx]; if (!src) return Promise.resolve(null);
+      var clone = src.cloneNode(true);
+      clone.removeAttribute('id'); clone.style.zoom = '1'; clone.style.margin = '0';
+      clone.style.position = 'fixed'; clone.style.left = '-4000px'; clone.style.top = '0';
+      clone.style.width = PW + 'px'; clone.style.height = PH + 'px'; clone.style.background = '#fff';
+      document.body.appendChild(clone);
+      return html2canvas(clone, { scale: 1.4, backgroundColor: '#ffffff', logging: false, width: PW, height: PH, windowWidth: PW, windowHeight: PH })
+        .then(function(cv) {
+          clone.remove();
+          var tex = new THREE.CanvasTexture(cv);
+          if (THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
+          tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+          texCache[idx] = tex;
+          return tex;
+        })
+        .catch(function() { clone.remove(); return null; });
+    }
+
+    var VERT = [
+      'uniform float uProgress; uniform float uPW; uniform float uR; uniform float uDir;',
+      'varying vec2 vUv; varying float vShade;',
+      'void main(){',
+      '  vUv = uv; vec3 p = position;',
+      '  float xFromLeft = p.x + uPW*0.5;',
+      '  float s = uDir > 0.0 ? (uPW - xFromLeft) : xFromLeft;',   // distance from the free edge
+      '  float c = uProgress * uPW * 1.08;',                        // lifted length from the free edge
+      '  float nx; float z; float sh;',
+      '  if (s >= c) { nx = p.x; z = 0.0; sh = 1.0; }',
+      '  else {',
+      '    float Rad = max(uR, c / 3.14159265);',                  // adaptive: lifted part forms at most a half-cylinder
+      '    float theta = min((c - s) / Rad, 3.14159265);',         // never wrap past a half-circle (no tube)
+      '    float contactFromLeft = uDir > 0.0 ? (uPW - c) : c;',
+      '    float contactX = contactFromLeft - uPW*0.5;',
+      '    float dx = Rad * sin(theta);',
+      '    nx = uDir > 0.0 ? (contactX - dx) : (contactX + dx);',
+      '    z = Rad * (1.0 - cos(theta));',
+      '    sh = 0.74 + 0.26 * cos(theta);',                        // soft shading along the curl (no black)
+      '  }',
+      '  vShade = sh;',
+      '  gl_Position = projectionMatrix * modelViewMatrix * vec4(nx, p.y, z, 1.0);',
+      '}'
+    ].join('\n');
+    var FRAG = [
+      'uniform sampler2D uTex;',
+      'varying vec2 vUv; varying float vShade;',
+      'void main(){',
+      '  vec4 t = texture2D(uTex, vUv);',
+      '  gl_FragColor = vec4(t.rgb * vShade, 1.0);',
+      '}'
+    ].join('\n');
+
+    function computeSize() {
+      var ow = overlay.clientWidth || window.innerWidth;
+      var oh = overlay.clientHeight || (window.innerHeight - 52);
+      var padV = 26, padH = 18;
+      pw = Math.min(ow - padH * 2, (oh - padV * 2) / RATIO);
+      pw = Math.max(220, Math.round(pw));
+      ph = Math.round(pw * RATIO);
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      renderer.setPixelRatio(dpr);
+      renderer.setSize(ow, oh, false);
+      cam.left = -ow / 2; cam.right = ow / 2; cam.top = oh / 2; cam.bottom = -oh / 2;
+      cam.updateProjectionMatrix();
+    }
+
+    function buildMeshes() {
+      if (frontMesh) { scene.remove(frontMesh); frontMesh.geometry.dispose(); }
+      if (backMesh) { scene.remove(backMesh); backMesh.geometry.dispose(); }
+      var nextIdx = currentPage + dir;
+      var frontTex = texCache[currentPage];
+      var backTex = texCache[nextIdx];
+      // back page (revealed), flat, slightly behind
+      if (backTex) {
+        var bg = new THREE.PlaneGeometry(pw, ph);
+        backMesh = new THREE.Mesh(bg, new THREE.MeshBasicMaterial({ map: backTex }));
+        backMesh.position.z = -1;
+        scene.add(backMesh);
+      } else { backMesh = null; }
+      // front page (curling)
+      var fg = new THREE.PlaneGeometry(pw, ph, 90, 2);
+      frontMat = new THREE.ShaderMaterial({
+        uniforms: {
+          uTex: { value: frontTex || null },
+          uProgress: { value: progress },
+          uPW: { value: pw },
+          uR: { value: Math.max(20, pw / 11) },
+          uDir: { value: dir }
+        },
+        vertexShader: VERT, fragmentShader: FRAG, side: THREE.DoubleSide
+      });
+      frontMesh = new THREE.Mesh(fg, frontMat);
+      scene.add(frontMesh);
+    }
+
+    function render() { if (renderer) renderer.render(scene, cam); }
+
+    function setProgress(v) {
+      progress = Math.max(0, Math.min(1, v));
+      if (frontMat) frontMat.uniforms.uProgress.value = progress;
+      render();
+    }
+
+    function animateTo(tv, onDone) {
+      animating = true;
+      var from = progress, t0 = null, dur = 520;
+      function step(ts) {
+        if (t0 === null) t0 = ts;
+        var k = Math.min(1, (ts - t0) / dur);
+        var e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2; // easeInOut
+        setProgress(from + (tv - from) * e);
+        if (k < 1) { requestAnimationFrame(step); }
+        else { animating = false; if (onDone) onDone(); }
+      }
+      requestAnimationFrame(step);
+    }
+
+    function commitTurn() {
+      // Page fully turned. The new page's texture is already cached (it was the "back"),
+      // so show it FLAT immediately (no rasterization delay), then load neighbours in the background.
+      var nextIdx = currentPage + dir;
+      if (nextIdx < 0 || nextIdx >= totalPages) { animateTo(0); return; }
+      currentPage = nextIdx;
+      updateUI();
+      dir = 1; progress = 0;
+      buildMeshes(); setProgress(0);
+      rasterize(currentPage + 1).then(function() { if (mode === 'flip' && !dragging && !animating) { buildMeshes(); setProgress(progress); } });
+      rasterize(currentPage - 1);
+    }
+
+    // pointer drag
+    function pageScreenRect() {
+      var ow = renderer.domElement.clientWidth, oh = renderer.domElement.clientHeight;
+      return { cx: ow / 2, halfW: pw / 2, left: ow / 2 - pw / 2, right: ow / 2 + pw / 2 };
+    }
+    function onDown(e) {
+      if (animating || busy) return;
+      var x = (e.touches ? e.touches[0].clientX : e.clientX) - overlay.getBoundingClientRect().left;
+      var r = pageScreenRect();
+      if (x < r.left - 20 || x > r.right + 20) return;
+      dragging = true;
+      dir = (x > r.cx) ? 1 : -1;               // grab right half -> forward, left half -> back
+      if ((currentPage + dir) < 0 || (currentPage + dir) >= totalPages) { dragging = false; return; }
+      hideHint();
+      // ensure the target neighbour is rasterized
+      rasterize(currentPage + dir).then(function() { buildMeshes(); setProgress(progress); });
+      e.preventDefault();
+    }
+    function onMove(e) {
+      if (!dragging) return;
+      var x = (e.touches ? e.touches[0].clientX : e.clientX) - overlay.getBoundingClientRect().left;
+      var r = pageScreenRect();
+      var p = dir > 0 ? (r.right - x) / pw : (x - r.left) / pw;
+      setProgress(p);
+      e.preventDefault();
+    }
+    function onUp() {
+      if (!dragging) return;
+      dragging = false;
+      if (progress > 0.45) animateTo(1, commitTurn);
+      else animateTo(0);
+    }
+
+    function turn(d) {
+      if (animating || dragging || busy) return;
+      var ni = currentPage + d;
+      if (ni < 0 || ni >= totalPages) return;
+      dir = d; hideHint();
+      rasterize(ni).then(function() { buildMeshes(); setProgress(0); animateTo(1, commitTurn); });
+    }
+    function next() { turn(1); }
+    function prev() { turn(-1); }
+
+    function hideHint() { if (hint) hint.classList.add('gone'); }
+
+    function enter() {
+      if (!ok()) { return false; }   // signal caller to fall back
+      busy = true;
+      if (hint) { hint.classList.remove('gone'); hint.textContent = 'Préparation…'; }
+      if (!renderer) {
+        renderer = new THREE.WebGLRenderer({ canvas: canvasEl, antialias: true, alpha: true });
+        scene = new THREE.Scene();
+        cam = new THREE.OrthographicCamera(-1, 1, 1, -1, -2000, 2000);
+        cam.position.z = 600;
+      }
+      computeSize();
+      dir = 1; progress = 0;
+      Promise.all([rasterize(currentPage), rasterize(currentPage + 1)]).then(function() {
+        buildMeshes(); setProgress(0); busy = false;
+        if (hint) hint.textContent = 'Glissez pour tourner la page';
+      });
+      return true;
+    }
+
+    function exit() {
+      dragging = false; animating = false;
+    }
+
+    function relayout() { if (renderer && mode === 'flip') { computeSize(); buildMeshes(); setProgress(progress); } }
+
+    // bind pointer/touch once
+    canvasEl.addEventListener('mousedown', onDown);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    canvasEl.addEventListener('touchstart', onDown, { passive: false });
+    canvasEl.addEventListener('touchmove', onMove, { passive: false });
+    canvasEl.addEventListener('touchend', onUp);
+
+    return { enter: enter, exit: exit, next: next, prev: prev, relayout: relayout, ok: ok };
+  })();
 
   function enterFlip() {
-    // Library failed to load (SRI/network)? Fall back gracefully to the two-page spread.
-    if (typeof St === 'undefined' || !St.PageFlip) {
+    var started = curl.enter();
+    if (!started) {
+      // WebGL/libs unavailable -> graceful fallback to the two-page spread
       mode = 'spread';
       document.body.classList.remove('mode-flip'); document.body.classList.add('mode-spread');
       document.getElementById('btnFlip').classList.remove('active');
       document.getElementById('btnSpread').classList.add('active');
       goToPage(currentPage); autoFit();
-      return;
     }
-    if (pageFlip) { try { pageFlip.destroy(); } catch (e) {} pageFlip = null; }
-    buildFlipClones();
-    var sz = flipLeafSize();
-    flipMount.querySelectorAll('.flip-page').forEach(function(leaf) {
-      leaf.style.width = sz.w + 'px'; leaf.style.height = sz.h + 'px';
-      var pg = leaf.querySelector('.pagedjs_page');
-      if (pg) pg.style.transform = 'scale(' + (sz.w / 794) + ')';
-    });
-    pageFlip = new St.PageFlip(flipMount, {
-      width: sz.w, height: sz.h, size: 'fixed',
-      usePortrait: true, drawShadow: true, flippingTime: 700,
-      showCover: false, mobileScrollSupport: true, swipeDistance: 25,
-      maxShadowOpacity: 0.5, useMouseEvents: true
-    });
-    pageFlip.loadFromHTML(flipMount.querySelectorAll('.flip-page'));
-    try { pageFlip.turnToPage(Math.min(currentPage, totalPages - 1)); } catch (e) {}
-    pageFlip.on('flip', function(e) {
-      currentPage = e.data;
-      updateUI();
-    });
   }
 
-  function exitFlip() {
-    if (pageFlip) { try { pageFlip.destroy(); } catch (e) {} pageFlip = null; }
-    flipMount.innerHTML = '';
-  }
+  function exitFlip() { curl.exit(); }
 
   // --- In-book full-text search (zero dependency) ---
   var searchEl = document.getElementById('readerSearch');
