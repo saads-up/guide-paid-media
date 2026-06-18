@@ -911,44 +911,83 @@ h1, h2, h3, h4, h5 {
 /* ═══════════════════════════════════════════════════════════════════════
    FICHES OPÉRATIONNELLES (Part 4 special layout)
    ═══════════════════════════════════════════════════════════════════════ */
+/* ═══ FICHES MÉMO — cartes de référence technique sur papier millimétré bleuté ═══ */
+/* La trame millimétrée est posée sur TOUTE la zone de contenu des pages de fiche
+   (classe .page-fiche ajoutée en JS) : un bas de page peu rempli reste un vrai
+   « espace de carnet » assumé, jamais du blanc oublié. */
+.page-fiche .pagedjs_area {
+  background-image:
+    linear-gradient(rgba(43,85,107,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(43,85,107,0.05) 1px, transparent 1px),
+    linear-gradient(rgba(43,85,107,0.085) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(43,85,107,0.085) 1px, transparent 1px);
+  background-size: 5.5mm 5.5mm, 5.5mm 5.5mm, 27.5mm 27.5mm, 27.5mm 27.5mm;
+  background-position: 0 0;
+}
 .fiche {
-  margin-bottom: 32px;
-}
-.fiche-header {
-  background: var(--navy);
-  color: #ffffff;
-  padding: 14px 20px 12px 20px;
-  border-radius: 6px 6px 0 0;
+  position: relative;
+  break-before: page;            /* chaque fiche démarre en haut d'une page -> vrai one/two-pager */
+  page-break-before: always;
+  margin: 0;
+  padding: 14px 0 6px 0;
   display: flex;
-  align-items: baseline;
-  gap: 12px;
+  flex-direction: column;
+  min-height: 236mm;             /* remplit la hauteur de page -> le corps se distribue, pas de gros vide */
 }
-.fiche-num {
-  font-family: 'Poppins', sans-serif;
-  font-weight: 900;
-  font-size: 16pt;
-  opacity: 0.7;
+.fiche::before {                 /* gros numéro fantôme en filigrane */
+  content: attr(data-num);
+  position: absolute; top: 8px; right: 18px;
+  font-family: 'Poppins', sans-serif; font-weight: 900; font-size: 62pt;
+  color: var(--camel); opacity: 0.12; line-height: 0.8; pointer-events: none; z-index: 0;
 }
+.fiche > * { position: relative; z-index: 1; }
+.fiche-header {
+  background: none; color: var(--navy);
+  padding: 0 0 9px 0; border-radius: 0;
+  border-bottom: 1.5px solid var(--camel);
+  display: block; margin-bottom: 14px;
+}
+.fiche-eyebrow {
+  font-family: 'IBM Plex Mono', monospace; font-size: 7.5pt;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--camel);
+  margin-bottom: 4px;
+}
+.fiche-num { display: none; }   /* remplacé par le filigrane + l'eyebrow */
 .fiche-title-text {
-  font-family: 'Poppins', sans-serif;
-  font-weight: 700;
-  font-size: 11pt;
+  font-family: 'Poppins', sans-serif; font-weight: 800; font-size: 15pt;
+  color: var(--navy); line-height: 1.15; display: block;
 }
 .fiche-section-tag {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 7pt;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: var(--camel-light);
-  margin-bottom: 6px;
-  margin-top: 4px;
+  font-family: 'IBM Plex Mono', monospace; font-size: 7pt;
+  letter-spacing: 0.15em; text-transform: uppercase;
+  color: var(--camel-light); margin-bottom: 6px; margin-top: 4px;
 }
+/* Corps de fiche = colonne flex aérée qui se distribue pour remplir la page
+   (gap = espacement minimum ; space-between répartit l'air en plus). */
 .fiche-body {
-  border: 1px solid var(--border-soft);
-  border-top: none;
-  border-radius: 0 0 6px 6px;
-  padding: 18px 20px;
+  border: none; border-radius: 0; padding: 0;
+  font-size: 9.5pt; line-height: 1.48;
+  flex: 1 1 auto; display: flex; flex-direction: column;
+  justify-content: space-between; gap: 10px;
 }
+.fiche-header { margin-bottom: 0; padding-bottom: 9px; }
+.fiche-body > p { margin: 0; }
+.fiche-body ul, .fiche-body ol { margin: 5px 0 0; padding-left: 18px; }
+.fiche-body li { margin-bottom: 3px; line-height: 1.45; }
+.fiche .code-block { font-size: 8.2pt; line-height: 1.42; padding: 11px 15px; margin: 0; }
+.fiche .fiche-script-panel { padding: 11px 15px; margin: 0; }
+.fiche .fiche-result-panel { padding: 10px 15px; margin: 0; }
+.fiche .callout-attention { margin: 0; padding: 10px 14px; }
+/* Fiche 01 a le prompt le plus long (~40 lignes) : densité accrue scopée à elle seule
+   pour tenir sur UNE page complète (mieux qu'une page 2 quasi vide). */
+.fiche[data-num="01"] .fiche-body { justify-content: flex-start; font-size: 9pt; line-height: 1.34; gap: 5px; }
+.fiche[data-num="01"] .code-block { font-size: 7.3pt; line-height: 1.25; padding: 8px 12px; }
+.fiche[data-num="01"] .fiche-script-panel,
+.fiche[data-num="01"] .fiche-result-panel { padding: 8px 12px; }
+.fiche[data-num="01"] .callout-attention { padding: 8px 12px; }
+.fiche[data-num="01"] .fiche-title-text { font-size: 14pt; }
+.fiche[data-num="01"] ol, .fiche[data-num="01"] ul { margin: 3px 0 0; }
+.fiche[data-num="01"] li { margin-bottom: 1px; line-height: 1.32; }
 
 /* Script panel (grey) */
 .fiche-script-panel {
@@ -1552,28 +1591,68 @@ body.reader-fullscreen .reader-canvas {
 .minimap-item {
   width: 100%;
   aspect-ratio: 210/297;
-  background: rgba(255,255,255,0.06);
+  background: #ffffff;
   border: 2px solid transparent;
   border-radius: 4px;
   margin-bottom: 8px;
   cursor: pointer;
   transition: border-color 0.15s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 10px;
-  color: rgba(255,255,255,0.35);
   position: relative;
   overflow: hidden;
 }
-.minimap-item:hover { border-color: rgba(255,255,255,0.2); }
-.minimap-item.current {
-  border-color: var(--camel);
-  background: rgba(168,120,88,0.12);
-  color: var(--camel-light);
+.minimap-item:hover { border-color: rgba(255,255,255,0.25); }
+.minimap-item.current { border-color: var(--camel); }
+.minimap-item.dark-page { background: var(--navy); }
+/* Live scaled-down preview of the actual page */
+.minimap-thumb { position: absolute; inset: 0; overflow: hidden; }
+.minimap-thumb .pagedjs_page { transform-origin: top left; margin: 0 !important; box-shadow: none !important; pointer-events: none; }
+.minimap-num {
+  position: absolute; bottom: 3px; right: 4px; z-index: 2;
+  font-family: 'IBM Plex Mono', monospace; font-size: 9px;
+  color: rgba(255,255,255,0.85); background: rgba(30,35,42,0.7);
+  padding: 0 4px; border-radius: 3px;
 }
-.minimap-item.dark-page { background: var(--navy); color: rgba(255,255,255,0.25); }
+.minimap-item.current .minimap-num { background: var(--camel); color: #fff; }
+
+/* ── Sommaire drawer (sidebar de navigation cliquable) ── */
+.toc-drawer-backdrop {
+  position: fixed; inset: 52px 0 0 0; background: rgba(0,0,0,0.35);
+  z-index: 899; opacity: 0; pointer-events: none; transition: opacity 0.28s;
+}
+.toc-drawer-backdrop.open { opacity: 1; pointer-events: auto; }
+.toc-drawer {
+  position: fixed; top: 52px; left: 0; bottom: 0; width: 340px; max-width: 86vw;
+  background: #1e252a; z-index: 900;
+  transform: translateX(-100%); transition: transform 0.28s ease;
+  display: flex; flex-direction: column; box-shadow: 4px 0 28px rgba(0,0,0,0.35);
+}
+.toc-drawer.open { transform: translateX(0); }
+.toc-drawer-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 15px 18px 12px; border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.toc-drawer-head h3 { font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 700; margin: 0; color: #fff; letter-spacing: 0.01em; }
+.toc-drawer-close { background: none; border: none; color: rgba(255,255,255,0.55); cursor: pointer; font-size: 22px; line-height: 1; padding: 2px 6px; border-radius: 6px; }
+.toc-drawer-close:hover { color: #fff; background: rgba(255,255,255,0.08); }
+.toc-drawer-list { flex: 1; overflow-y: auto; padding: 8px 10px 28px; }
+.toc-drawer-list::-webkit-scrollbar { width: 4px; }
+.toc-drawer-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 2px; }
+.toc-drawer-part {
+  font-family: 'IBM Plex Mono', monospace; font-size: 9px; text-transform: uppercase;
+  letter-spacing: 0.12em; color: var(--camel-light); padding: 15px 8px 5px;
+}
+.toc-drawer-item {
+  display: flex; align-items: baseline; gap: 10px; width: 100%; text-align: left;
+  background: none; border: none; cursor: pointer; padding: 7px 8px; border-radius: 6px;
+  color: rgba(255,255,255,0.82); font-family: 'Inter', sans-serif; font-size: 12.5px;
+  line-height: 1.35; transition: background 0.12s, color 0.12s;
+}
+.toc-drawer-item:hover { background: rgba(255,255,255,0.07); color: #fff; }
+.toc-drawer-item.current { background: rgba(168,120,88,0.18); color: var(--camel-light); }
+.tdi-label { flex: 1; }
+.tdi-label strong { font-weight: 700; color: #fff; }
+.toc-drawer-item.is-fiche .tdi-label, .toc-drawer-item.is-annexe .tdi-label { font-size: 12px; color: rgba(255,255,255,0.74); }
+.tdi-page { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: rgba(255,255,255,0.38); flex-shrink: 0; }
 
 /* Hide reader UI in print */
 @media print {
@@ -1694,6 +1773,7 @@ p { orphans: 3; widows: 3; }
 .part-divider { break-before: page; page: part-divider; }
 .cover-page { break-after: page; page: cover; }
 .toc-section { break-before: page; page: toc; }
+.fiche { break-before: page; }   /* chaque fiche démarre sur une nouvelle page (lu par PagedJS ici) */
 h2, h3 { break-after: avoid; }
 .chapter-opener { break-after: avoid; break-inside: avoid; }
 .toc-entry { break-inside: avoid; }
@@ -1784,6 +1864,9 @@ h2, h3 { break-after: avoid; }
     <div class="reader-sep"></div>
 
     <!-- Search + fullscreen + minimap + shortcuts -->
+    <button class="reader-btn" id="btnToc" title="Sommaire">
+      <svg viewBox="0 0 24 24"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4.5" cy="6" r="1.1" fill="currentColor" stroke="none"/><circle cx="4.5" cy="12" r="1.1" fill="currentColor" stroke="none"/><circle cx="4.5" cy="18" r="1.1" fill="currentColor" stroke="none"/></svg>
+    </button>
     <button class="reader-btn" id="btnSearch" title="Rechercher (/ ou Ctrl+F)">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
     </button>
@@ -1835,6 +1918,16 @@ h2, h3 { break-after: avoid; }
 
 <!-- Minimap sidebar -->
 <div class="reader-minimap" id="readerMinimap"></div>
+
+<!-- Sommaire drawer (clickable navigation sidebar) -->
+<div class="toc-drawer-backdrop" id="tocBackdrop"></div>
+<aside class="toc-drawer" id="tocDrawer">
+  <div class="toc-drawer-head">
+    <h3>Sommaire</h3>
+    <button class="toc-drawer-close" id="tocDrawerClose" aria-label="Fermer">&times;</button>
+  </div>
+  <div class="toc-drawer-list" id="tocDrawerList"></div>
+</aside>
 
 <!-- Keyboard shortcuts overlay -->
 <div class="reader-shortcuts" id="shortcutsOverlay">
@@ -3200,21 +3293,18 @@ Vous êtes un consultant senior en Search Ads spécialisé dans le secteur
 [secteur du client]. Vous produisez des analyses pour le compte
 [nom du client], un [description du client et de son activité].
 <span class="code-tag">&lt;/role&gt;</span>
-
 <span class="code-tag">&lt;context&gt;</span>
 - Budget mensuel : [montant]
 - Objectif principal : [CPA cible / ROAS cible / volume de leads]
 - Marchés : [pays/langues]
 - Historique : [éléments de contexte pertinents]
 <span class="code-tag">&lt;/context&gt;</span>
-
 <span class="code-tag">&lt;output_format&gt;</span>
 - Toujours structurer les analyses en : Constat → Diagnostic → Recommandation
 - Chiffres : toujours avec la source et la période
 - Longueur : [concis / détaillé selon le type de livrable]
 - Langue : français
 <span class="code-tag">&lt;/output_format&gt;</span>
-
 <span class="code-tag">&lt;rules&gt;</span>
 - Ne jamais inventer de chiffre. Si une donnée manque, le signaler.
 - Ne jamais recommander de modifier des enchères ou budgets sans
@@ -4226,16 +4316,14 @@ Vous êtes un consultant senior en Search Ads spécialisé dans le secteur
 
   <div class="body-content">
 
-    <p>Douze fiches pr&ecirc;tes &agrave; l&rsquo;emploi. Chacune suit le m&ecirc;me format&nbsp;: le contexte et ce que le script pr&eacute;pare en amont (la Phase 1 du pipeline), puis le prompt copier-collable, le r&eacute;sultat attendu, et le pi&egrave;ge &agrave; &eacute;viter.</p>
+    <p>Treize fiches pr&ecirc;tes &agrave; l&rsquo;emploi. Chacune suit le m&ecirc;me format&nbsp;: le contexte et ce que le script pr&eacute;pare en amont (la Phase 1 du pipeline), puis le prompt copier-collable, le r&eacute;sultat attendu, et le pi&egrave;ge &agrave; &eacute;viter.</p>
 
     <p>Les prompts utilisent des balises XML, conform&eacute;ment &agrave; la recommandation d&rsquo;Anthropic&nbsp;: Claude est sp&eacute;cifiquement entra&icirc;n&eacute; &agrave; reconna&icirc;tre les tags XML comme marqueurs structurels.</p>
 
-    <!-- ═══ SETUP ═══ -->
-    <div class="fiche-section-tag">Setup</div>
-
     <!-- FICHE 01 -->
+    <section class="fiche" data-num="01">
     <div class="fiche-header">
-      <div class="fiche-num">01</div>
+      <div class="fiche-eyebrow">Fiche 01 &middot; Setup</div>
       <div class="fiche-title-text">Cr&eacute;er son Project &laquo;&nbsp;Paid Media&nbsp;&raquo;</div>
     </div>
     <div class="fiche-body">
@@ -4296,9 +4384,12 @@ recommandations pour le compte [nom du client], [description courte].
       </div>
     </div>
 
+    </section>
+
     <!-- FICHE 02 -->
+    <section class="fiche" data-num="02">
     <div class="fiche-header">
-      <div class="fiche-num">02</div>
+      <div class="fiche-eyebrow">Fiche 02 &middot; Setup</div>
       <div class="fiche-title-text">Connecter un compte en lecture via MCP</div>
     </div>
     <div class="fiche-body">
@@ -4340,11 +4431,13 @@ dépense du mois en cours, CPA. Format tableau.</div>
     </div>
 
     <!-- ═══ SEA ═══ -->
-    <div class="fiche-section-tag">SEA &ndash; Search Ads</div>
+
+    </section>
 
     <!-- FICHE 03 -->
+    <section class="fiche" data-num="03">
     <div class="fiche-header">
-      <div class="fiche-num">03</div>
+      <div class="fiche-eyebrow">Fiche 03 &middot; Search Ads</div>
       <div class="fiche-title-text">Diagnostic express d&rsquo;un compte Search</div>
     </div>
     <div class="fiche-body">
@@ -4400,9 +4493,12 @@ Pour chaque tension :
       </div>
     </div>
 
+    </section>
+
     <!-- FICHE 04 -->
+    <section class="fiche" data-num="04">
     <div class="fiche-header">
-      <div class="fiche-num">04</div>
+      <div class="fiche-eyebrow">Fiche 04 &middot; Search Ads</div>
       <div class="fiche-title-text">Analyse search terms</div>
     </div>
     <div class="fiche-body">
@@ -4448,9 +4544,12 @@ Pour chaque tension :
       </div>
     </div>
 
+    </section>
+
     <!-- FICHE 05 -->
+    <section class="fiche" data-num="05">
     <div class="fiche-header">
-      <div class="fiche-num">05</div>
+      <div class="fiche-eyebrow">Fiche 05 &middot; Search Ads</div>
       <div class="fiche-title-text">RSA qui convertissent</div>
     </div>
     <div class="fiche-body">
@@ -4498,9 +4597,12 @@ métriques de conversion]
       </div>
     </div>
 
+    </section>
+
     <!-- FICHE 06 -->
+    <section class="fiche" data-num="06">
     <div class="fiche-header">
-      <div class="fiche-num">06</div>
+      <div class="fiche-eyebrow">Fiche 06 &middot; Search Ads</div>
       <div class="fiche-title-text">Reporting client SEA</div>
     </div>
     <div class="fiche-body">
@@ -4546,11 +4648,13 @@ métriques de conversion]
     </div>
 
     <!-- ═══ SMA ═══ -->
-    <div class="fiche-section-tag">SMA &ndash; Social Media Ads</div>
+
+    </section>
 
     <!-- FICHE 07 -->
+    <section class="fiche" data-num="07">
     <div class="fiche-header">
-      <div class="fiche-num">07</div>
+      <div class="fiche-eyebrow">Fiche 07 &middot; Social Ads</div>
       <div class="fiche-title-text">Diagnostic fatigue cr&eacute;ative</div>
     </div>
     <div class="fiche-body">
@@ -4589,9 +4693,12 @@ métriques de conversion]
       </div>
     </div>
 
+    </section>
+
     <!-- FICHE 08 -->
+    <section class="fiche" data-num="08">
     <div class="fiche-header">
-      <div class="fiche-num">08</div>
+      <div class="fiche-eyebrow">Fiche 08 &middot; Social Ads</div>
       <div class="fiche-title-text">Brief cr&eacute;atif data-driven</div>
     </div>
     <div class="fiche-body">
@@ -4635,9 +4742,12 @@ métriques de conversion]
       </div>
     </div>
 
+    </section>
+
     <!-- FICHE 09 -->
+    <section class="fiche" data-num="09">
     <div class="fiche-header">
-      <div class="fiche-num">09</div>
+      <div class="fiche-eyebrow">Fiche 09 &middot; Social Ads</div>
       <div class="fiche-title-text">Copy social multi-variantes</div>
     </div>
     <div class="fiche-body">
@@ -4686,9 +4796,12 @@ métriques de conversion]
       </div>
     </div>
 
+    </section>
+
     <!-- FICHE 10 -->
+    <section class="fiche" data-num="10">
     <div class="fiche-header">
-      <div class="fiche-num">10</div>
+      <div class="fiche-eyebrow">Fiche 10 &middot; Social Ads</div>
       <div class="fiche-title-text">Reporting SMA cross-market</div>
     </div>
     <div class="fiche-body">
@@ -4731,11 +4844,13 @@ métriques de conversion]
     </div>
 
     <!-- ═══ AVANCÉ ═══ -->
-    <div class="fiche-section-tag">Avanc&eacute;</div>
+
+    </section>
 
     <!-- FICHE 11 -->
+    <section class="fiche" data-num="11">
     <div class="fiche-header">
-      <div class="fiche-num">11</div>
+      <div class="fiche-eyebrow">Fiche 11 &middot; Avancé</div>
       <div class="fiche-title-text">Dashboard consolid&eacute; cross-canal</div>
     </div>
     <div class="fiche-body">
@@ -4775,9 +4890,12 @@ Le dashboard doit être lisible, professionnel, exportable via le lien Artifact.
       </div>
     </div>
 
+    </section>
+
     <!-- FICHE 12 -->
+    <section class="fiche" data-num="12">
     <div class="fiche-header">
-      <div class="fiche-num">12</div>
+      <div class="fiche-eyebrow">Fiche 12 &middot; Avancé</div>
       <div class="fiche-title-text">De l&rsquo;artisanat &agrave; la cha&icirc;ne&nbsp;: industrialiser un workflow</div>
     </div>
     <div class="fiche-body">
@@ -4815,9 +4933,12 @@ Le dashboard doit être lisible, professionnel, exportable via le lien Artifact.
       </div>
     </div>
 
+    </section>
+
     <!-- FICHE 13 -->
+    <section class="fiche" data-num="13">
     <div class="fiche-header">
-      <div class="fiche-num">13</div>
+      <div class="fiche-eyebrow">Fiche 13 &middot; Avancé</div>
       <div class="fiche-title-text">Shopping &amp; Merchant Center&nbsp;: intelligence prix et best-sellers</div>
     </div>
     <div class="fiche-body">
@@ -4859,6 +4980,7 @@ Le dashboard doit être lisible, professionnel, exportable via le lien Artifact.
         <p>L&rsquo;API expose un <strong>benchmark de march&eacute;</strong>, pas le prix d&rsquo;un concurrent nomm&eacute;. Ne pr&eacute;sentez jamais le benchmark comme &laquo;&nbsp;le prix de tel concurrent&nbsp;&raquo;. Et le prix rel&egrave;ve souvent de la d&eacute;cision du client (marge, positionnement)&nbsp;: votre r&ocirc;le est de l&rsquo;objectiver, pas de l&rsquo;imposer.</p>
       </div>
     </div>
+    </section>
 
 
   </div>
@@ -5327,6 +5449,7 @@ function initReader(flow) {
     var book = 'Claude pour le Paid Media';
     var current = '';
     pages.forEach(function(pg, i) {
+      if (pg.querySelector('.fiche')) pg.classList.add('page-fiche');   // blueprint-grid page
       var ct = pg.querySelector('.chapter-title, .avant-propos-title');
       if (ct) current = ct.textContent.replace(/\s+/g, ' ').trim();
       if (pg.querySelector('.cover-page') || pg.querySelector('.part-divider') || pg.querySelector('.toc-section')) return;
@@ -5344,6 +5467,7 @@ function initReader(flow) {
   function init() {
     document.body.classList.add('mode-paginated');
     addRunningHeads();
+    buildToc();        // clickable Sommaire drawer + recalibrate the printed TOC page numbers
     buildMinimap();
     goToPage(0);
     autoFit();
@@ -5503,14 +5627,22 @@ function initReader(flow) {
   }
 
   // --- Minimap ---
+  var minimapPopulated = false;
   function buildMinimap() {
     minimap.innerHTML = '';
+    minimapPopulated = false;
     pages.forEach(function(p, i) {
       var item = document.createElement('div');
       item.className = 'minimap-item';
       var type = getPageType(p);
       if (type === 'cover' || type === 'part-divider') item.classList.add('dark-page');
-      item.textContent = (i + 1);
+      var thumb = document.createElement('div');
+      thumb.className = 'minimap-thumb';
+      item.appendChild(thumb);
+      var num = document.createElement('span');
+      num.className = 'minimap-num';
+      num.textContent = (i + 1);
+      item.appendChild(num);
       item.addEventListener('click', function() {
         goToPage(i);
         if (window.innerWidth < 1200) toggleMinimap();
@@ -5518,9 +5650,105 @@ function initReader(flow) {
       minimap.appendChild(item);
     });
   }
+  // Lazily fill the thumbnails with scaled-down clones of the real pages (only on first open).
+  function populateMinimapThumbs() {
+    if (minimapPopulated) return;
+    minimapPopulated = true;
+    var items = minimap.querySelectorAll('.minimap-item');
+    if (!items.length) return;
+    var scale = (items[0].clientWidth || 136) / 794;
+    pages.forEach(function(p, i) {
+      var thumb = items[i] && items[i].querySelector('.minimap-thumb');
+      if (!thumb) return;
+      var clone = p.cloneNode(true);
+      clone.removeAttribute('id'); clone.style.zoom = '1';
+      clone.style.transform = 'scale(' + scale + ')';
+      thumb.appendChild(clone);
+    });
+  }
 
   function toggleMinimap() {
+    var opening = !minimap.classList.contains('open');
     minimap.classList.toggle('open');
+    if (opening) setTimeout(populateMinimapThumbs, 320);   // after the width transition
+  }
+
+  // --- Sommaire drawer + printed-TOC recalibration (same page mapping for both) ---
+  var tocEntryPages = [];   // [{el, page}] for current-highlighting
+  function tocTargetPage(entry) {
+    var label = (entry.querySelector('.toc-label') || {}).textContent || '';
+    var m, sel = null;
+    if (/avant-propos/i.test(label)) sel = '[data-chapter="avant-propos"]';
+    else if (m = label.match(/Ch\.\s*(\d+)/)) sel = '[data-chapter="' + m[1] + '"]';
+    else if (m = label.match(/Fiche\s*0*(\d+)/)) sel = '.fiche[data-num="' + ('0' + m[1]).slice(-2) + '"]';
+    if (sel) {
+      for (var i = 0; i < pages.length; i++) if (pages[i].querySelector(sel)) return i;
+    }
+    if (entry.classList.contains('toc-annexe')) {
+      var letter = (label.match(/^\s*([A-D])\./) || [])[1];
+      if (letter) {
+        for (var k = 0; k < pages.length; k++) {
+          var hs = pages[k].querySelectorAll('h2');
+          for (var j = 0; j < hs.length; j++) {
+            if (hs[j].textContent.trim().indexOf(letter + '.') === 0) return k;
+          }
+        }
+      }
+    }
+    return -1;
+  }
+  function buildToc() {
+    var list = document.getElementById('tocDrawerList');
+    if (!list) return;
+    list.innerHTML = '';
+    tocEntryPages = [];
+    var nodes = document.querySelectorAll('.toc-part, .toc-entry');
+    Array.prototype.forEach.call(nodes, function(node) {
+      if (node.classList.contains('toc-part')) {
+        var h = document.createElement('div');
+        h.className = 'toc-drawer-part';
+        h.textContent = node.textContent.trim();
+        list.appendChild(h);
+        return;
+      }
+      var pg = tocTargetPage(node);
+      var numEl = node.querySelector('.toc-page-num');
+      if (numEl && pg >= 0) numEl.textContent = (pg + 1);   // recalibrate the PRINTED toc
+      var item = document.createElement('button');
+      item.className = 'toc-drawer-item' +
+        (node.classList.contains('toc-fiche') ? ' is-fiche' : '') +
+        (node.classList.contains('toc-annexe') ? ' is-annexe' : '');
+      var lab = document.createElement('span');
+      lab.className = 'tdi-label';
+      lab.innerHTML = (node.querySelector('.toc-label') || {}).innerHTML || '';
+      var num = document.createElement('span');
+      num.className = 'tdi-page';
+      num.textContent = pg >= 0 ? (pg + 1) : '';
+      item.appendChild(lab); item.appendChild(num);
+      if (pg >= 0) {
+        item.addEventListener('click', function() { goToPage(pg); closeTocDrawer(); });
+        tocEntryPages.push({ el: item, page: pg });
+      }
+      list.appendChild(item);
+    });
+  }
+  function highlightTocCurrent() {
+    var best = -1;
+    tocEntryPages.forEach(function(e) { if (e.page <= currentPage && e.page > best) best = e.page; });
+    tocEntryPages.forEach(function(e) { e.el.classList.toggle('current', e.page === best); });
+  }
+  function openTocDrawer() {
+    highlightTocCurrent();
+    document.getElementById('tocDrawer').classList.add('open');
+    document.getElementById('tocBackdrop').classList.add('open');
+  }
+  function closeTocDrawer() {
+    document.getElementById('tocDrawer').classList.remove('open');
+    document.getElementById('tocBackdrop').classList.remove('open');
+  }
+  function toggleTocDrawer() {
+    if (document.getElementById('tocDrawer').classList.contains('open')) closeTocDrawer();
+    else openTocDrawer();
   }
 
   // --- Event Bindings ---
@@ -5543,6 +5771,11 @@ function initReader(flow) {
     // Download -> the book is print-ready, so print to PDF (the @media print rules
     // hide the chrome and lay out every page). The user picks "Enregistrer en PDF".
     document.getElementById('btnDownload').addEventListener('click', function() { window.print(); });
+
+    // Sommaire -> open the clickable navigation drawer
+    document.getElementById('btnToc').addEventListener('click', toggleTocDrawer);
+    document.getElementById('tocDrawerClose').addEventListener('click', closeTocDrawer);
+    document.getElementById('tocBackdrop').addEventListener('click', closeTocDrawer);
 
     // Search bindings
     document.getElementById('btnSearch').addEventListener('click', toggleSearch);
@@ -5621,6 +5854,7 @@ function initReader(flow) {
         case 'Escape':
           shortcutsOverlay.classList.remove('visible');
           minimap.classList.remove('open');
+          closeTocDrawer();
           closeSearch();
           break;
       }
