@@ -1506,6 +1506,8 @@ body.mode-flip .pagedjs_page.flip-prev { transform-origin: right center; animati
 
 /* Mobile: compact toolbar; autoFit + pinch handle zoom, swipe handles paging */
 @media (max-width: 640px) {
+  /* Prevent any wide child from inflating the layout viewport (which broke auto-fit). */
+  html, body { overflow-x: hidden; max-width: 100vw; }
   .reader-brand-title { display: none; }
   .reader-zoom-wrap { display: none; }
   .reader-toolbar { padding-left: 8px; padding-right: 8px; }
@@ -1513,6 +1515,9 @@ body.mode-flip .pagedjs_page.flip-prev { transform-origin: right center; animati
   .reader-controls::-webkit-scrollbar { display: none; }
   .reader-sep { margin: 0 1px; }
   .reader-search { top: 52px; right: 8px; left: 8px; width: auto; max-width: none; }
+  /* Mobile continuous reading: full-width pages, tight gaps, start under the toolbar. */
+  body.mode-scroll .reader-canvas { padding: 56px 0 24px; gap: 10px; }
+  body.mode-scroll .reader-canvas .pagedjs_page { margin-left: auto; margin-right: auto; }
 }
 
 /* Zoom transform on pages */
@@ -5347,30 +5352,40 @@ function initReader(flow) {
     window.addEventListener('resize', function() {
       requestAnimationFrame(function() { goToPage(currentPage); autoFit(); });
     });
+    // On phones, default to continuous scroll (full-width pages = natural mobile reading).
+    if (isNarrow()) setMode('scroll');
   }
 
   // --- Auto-fit: calculate zoom so page fits in viewport ---
   function autoFit() {
-    if (mode === 'scroll') return;
-    // Reserve the REAL vertical chrome so the scaled page fits with no scroll:
-    // the fixed toolbar + the canvas paddings + the body paddings + a margin buffer.
-    var toolbar = document.getElementById('readerToolbar');
-    var toolbarH = toolbar ? toolbar.offsetHeight : 52;
-    var bodyCS = getComputedStyle(document.body);
-    var canvasCS = getComputedStyle(canvas);
-    var pad = function(cs, side) { return parseFloat(cs['padding' + side]) || 0; };
-    var chromeTop = Math.max(toolbarH, pad(canvasCS, 'Top')) + pad(bodyCS, 'Top');
-    var chromeBottom = pad(canvasCS, 'Bottom') + pad(bodyCS, 'Bottom') + 30; // page margin buffer
-    var viewportH = window.innerHeight - chromeTop - chromeBottom;
-    var viewportW = window.innerWidth - 80;
+    var narrow = isNarrow();
+    // Desktop scroll keeps native sizing; mobile scroll is fit-to-width.
+    if (mode === 'scroll' && !narrow) return;
     // A4 in px at 96dpi: 210mm = ~794px, 297mm = ~1123px
-    var pageW = 794;
-    var pageH = 1123;
+    var pageW = 794, pageH = 1123;
+    // Use the LAYOUT viewport (clientWidth) so a transiently-wide child can't inflate the fit.
+    var docW = document.documentElement.clientWidth || window.innerWidth;
+    var docH = document.documentElement.clientHeight || window.innerHeight;
+    var sideMargin = narrow ? 8 : 80;
+    var viewportW = docW - sideMargin;
     var fitZoom;
-    if (twoUp()) {
-      fitZoom = Math.min(viewportH / pageH, viewportW / (pageW * 2 + 4));
+    if (mode === 'scroll') {
+      // Mobile scroll: fill the width; vertical overflow handled by scrolling.
+      fitZoom = viewportW / pageW;
     } else {
-      fitZoom = Math.min(viewportH / pageH, viewportW / pageW);
+      var toolbar = document.getElementById('readerToolbar');
+      var toolbarH = toolbar ? toolbar.offsetHeight : 52;
+      var bodyCS = getComputedStyle(document.body);
+      var canvasCS = getComputedStyle(canvas);
+      var pad = function(cs, side) { return parseFloat(cs['padding' + side]) || 0; };
+      var chromeTop = Math.max(toolbarH, pad(canvasCS, 'Top')) + pad(bodyCS, 'Top');
+      var chromeBottom = pad(canvasCS, 'Bottom') + pad(bodyCS, 'Bottom') + 30;
+      var viewportH = docH - chromeTop - chromeBottom;
+      if (twoUp()) {
+        fitZoom = Math.min(viewportH / pageH, viewportW / (pageW * 2 + 4));
+      } else {
+        fitZoom = Math.min(viewportH / pageH, viewportW / pageW);
+      }
     }
     fitZoom = Math.min(fitZoom, 1.5);
     fitZoom = Math.max(fitZoom, 0.3);
