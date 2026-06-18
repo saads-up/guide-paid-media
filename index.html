@@ -9,6 +9,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;700&family=Poppins:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<!-- StPageFlip (page-flip@2.0.7, MIT) — vrai effet papier ; épinglé par hash SRI -->
+<script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.js" integrity="sha384-L4eWrYFdqQ+LoGA0MMuqLqzV13x7SKkQaqacy4MED8e815dS37tTKlO/6xBEUpZW" crossorigin="anonymous"></script>
 <style>
 /* ═══════════════════════════════════════════════════════════════════════
    DESIGN SYSTEM - Ad's up Consulting Book Layout
@@ -1446,30 +1448,24 @@ body.mode-spread .reader-canvas .pagedjs_page.active-page-right { display: block
 /* Mode: scroll - show all pages flowing */
 body.mode-scroll .reader-canvas .pagedjs_page { display: block; }
 
-/* Mode: flip - open book + page-turn animation (built on the spread layout) */
-body.mode-flip .reader-canvas {
-  flex-direction: row;
-  flex-wrap: nowrap;
+/* Mode: flip - real paper page-curl via StPageFlip, rendered in an isolated overlay */
+body.mode-flip #readerCanvas { display: none; }
+.flipbook-overlay {
+  display: none;
+  position: fixed;
+  top: 52px; left: 0; right: 0; bottom: 0;
+  background: #e7e2db;
+  z-index: 40;
+  align-items: center;
   justify-content: center;
-  gap: 0;
-  align-items: flex-start;
-  padding-top: 64px;
+  overflow: hidden;
+  -webkit-user-select: none; user-select: none;
 }
-body.mode-flip .reader-canvas .pagedjs_page { display: none; }
-body.mode-flip .reader-canvas .pagedjs_page.active-page,
-body.mode-flip .reader-canvas .pagedjs_page.active-page-right { display: block; }
-body.mode-flip .reader-canvas .pagedjs_page.active-page { box-shadow: 9px 0 22px -10px rgba(30,61,78,0.30), 0 2px 12px rgba(0,0,0,0.10); }
-body.mode-flip .reader-canvas .pagedjs_page.active-page-right { box-shadow: -9px 0 22px -10px rgba(30,61,78,0.30), 0 2px 12px rgba(0,0,0,0.10); }
-@keyframes pageTurnNext {
-  from { transform: perspective(2600px) rotateY(-82deg); opacity: 0.25; }
-  to   { transform: perspective(2600px) rotateY(0deg); opacity: 1; }
-}
-@keyframes pageTurnPrev {
-  from { transform: perspective(2600px) rotateY(82deg); opacity: 0.25; }
-  to   { transform: perspective(2600px) rotateY(0deg); opacity: 1; }
-}
-body.mode-flip .pagedjs_page.flip-next { transform-origin: left center; animation: pageTurnNext 0.55s cubic-bezier(.2,.7,.3,1) both; }
-body.mode-flip .pagedjs_page.flip-prev { transform-origin: right center; animation: pageTurnPrev 0.55s cubic-bezier(.2,.7,.3,1) both; }
+body.mode-flip .flipbook-overlay { display: flex; }
+#flipbook { margin: 0 auto; }
+.flip-page { background: #ffffff; overflow: hidden; }
+.flip-page .pagedjs_page { transform-origin: top left; margin: 0 !important; box-shadow: none !important; }
+.stf__parent { margin: 0 auto; }
 
 /* In-book full-text search */
 .reader-search {
@@ -1847,6 +1843,9 @@ h2, h3 { break-after: avoid; }
   </div>
   <div class="reader-search-results" id="searchResults"></div>
 </div>
+
+<!-- Flipbook overlay: StPageFlip renders the real paper page-curl here in "Feuilleter" mode -->
+<div class="flipbook-overlay" id="flipbookOverlay"><div id="flipbook"></div></div>
 
 <!-- Side navigation arrows -->
 <div class="reader-nav-arrow left" id="navLeft">
@@ -5350,7 +5349,10 @@ function initReader(flow) {
     autoFit();
     bindEvents();
     window.addEventListener('resize', function() {
-      requestAnimationFrame(function() { goToPage(currentPage); autoFit(); });
+      requestAnimationFrame(function() {
+        if (mode === 'flip') { enterFlip(); }
+        else { goToPage(currentPage); autoFit(); }
+      });
     });
     // On phones, default to continuous scroll (full-width pages = natural mobile reading).
     if (isNarrow()) setMode('scroll');
@@ -5413,8 +5415,6 @@ function initReader(flow) {
       pages[idx].classList.add('active-page');
     }
 
-    if (mode === 'flip') triggerFlip(dir);
-
     updateUI();
     if (mode !== 'scroll') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -5422,11 +5422,13 @@ function initReader(flow) {
   }
 
   function nextPage() {
+    if (mode === 'flip' && pageFlip) { pageFlip.flipNext('top'); return; }
     var step = twoUp() ? 2 : 1;
     goToPage(currentPage + step);
   }
 
   function prevPage() {
+    if (mode === 'flip' && pageFlip) { pageFlip.flipPrev('bottom'); return; }
     var step = twoUp() ? 2 : 1;
     goToPage(currentPage - step);
   }
@@ -5468,18 +5470,24 @@ function initReader(flow) {
 
   // --- Mode switching ---
   function setMode(newMode) {
+    var was = mode;
     mode = newMode;
-    document.body.classList.remove('mode-paginated', 'mode-spread', 'mode-scroll');
+    document.body.classList.remove('mode-paginated', 'mode-spread', 'mode-scroll', 'mode-flip');
     document.body.classList.add('mode-' + mode);
 
     document.getElementById('btnSingle').classList.toggle('active', mode === 'paginated');
     document.getElementById('btnSpread').classList.toggle('active', mode === 'spread');
     document.getElementById('btnScroll').classList.toggle('active', mode === 'scroll');
     document.getElementById('btnFlip').classList.toggle('active', mode === 'flip');
-    pages.forEach(function(p){ p.classList.remove('flip-next', 'flip-prev'); });
 
-    goToPage(currentPage);
-    autoFit();
+    if (mode === 'flip') {
+      enterFlip();
+      updateUI();
+    } else {
+      if (was === 'flip') exitFlip();
+      goToPage(currentPage);
+      autoFit();
+    }
   }
 
   // --- Fullscreen ---
@@ -5640,19 +5648,76 @@ function initReader(flow) {
     });
   }
 
-  // --- Flipbook page-turn animation ---
-  function triggerFlip(dir) {
-    var cls = dir === 'prev' ? 'flip-prev' : 'flip-next';
+  // --- Real paper flipbook (StPageFlip overlay) ---
+  var pageFlip = null;                                  // St.PageFlip instance
+  var flipMount = document.getElementById('flipbook');
+  var flipOverlay = document.getElementById('flipbookOverlay');
+
+  function flipLeafSize() {
+    var ow = flipOverlay.clientWidth || window.innerWidth;
+    var oh = flipOverlay.clientHeight || (window.innerHeight - 52);
+    var ratio = 1123 / 794;            // A4 height / width
+    var padV = 28, padH = 20;
+    var maxH = oh - padV * 2;
+    var portrait = isNarrow();
+    var fpw;
+    if (portrait) {
+      fpw = Math.min(ow - padH * 2, maxH / ratio);
+    } else {
+      fpw = Math.min((ow - padH * 2) / 2, maxH / ratio);
+    }
+    fpw = Math.max(220, fpw);
+    return { w: Math.round(fpw), h: Math.round(fpw * ratio) };
+  }
+
+  function buildFlipClones() {
+    flipMount.innerHTML = '';
     pages.forEach(function(p) {
-      if (!p.classList.contains('active-page') && !p.classList.contains('active-page-right')) return;
-      p.classList.remove('flip-next', 'flip-prev');
-      void p.offsetWidth; // force reflow so the animation restarts
-      p.classList.add(cls);
-      p.addEventListener('animationend', function handler() {
-        p.classList.remove(cls);
-        p.removeEventListener('animationend', handler);
-      });
+      var leaf = document.createElement('div');
+      leaf.className = 'flip-page';
+      var clone = p.cloneNode(true);
+      clone.removeAttribute('id');
+      clone.style.zoom = '1';
+      leaf.appendChild(clone);
+      flipMount.appendChild(leaf);
     });
+  }
+
+  function enterFlip() {
+    // Library failed to load (SRI/network)? Fall back gracefully to the two-page spread.
+    if (typeof St === 'undefined' || !St.PageFlip) {
+      mode = 'spread';
+      document.body.classList.remove('mode-flip'); document.body.classList.add('mode-spread');
+      document.getElementById('btnFlip').classList.remove('active');
+      document.getElementById('btnSpread').classList.add('active');
+      goToPage(currentPage); autoFit();
+      return;
+    }
+    if (pageFlip) { try { pageFlip.destroy(); } catch (e) {} pageFlip = null; }
+    buildFlipClones();
+    var sz = flipLeafSize();
+    flipMount.querySelectorAll('.flip-page').forEach(function(leaf) {
+      leaf.style.width = sz.w + 'px'; leaf.style.height = sz.h + 'px';
+      var pg = leaf.querySelector('.pagedjs_page');
+      if (pg) pg.style.transform = 'scale(' + (sz.w / 794) + ')';
+    });
+    pageFlip = new St.PageFlip(flipMount, {
+      width: sz.w, height: sz.h, size: 'fixed',
+      usePortrait: true, drawShadow: true, flippingTime: 700,
+      showCover: false, mobileScrollSupport: true, swipeDistance: 25,
+      maxShadowOpacity: 0.5, useMouseEvents: true
+    });
+    pageFlip.loadFromHTML(flipMount.querySelectorAll('.flip-page'));
+    try { pageFlip.turnToPage(Math.min(currentPage, totalPages - 1)); } catch (e) {}
+    pageFlip.on('flip', function(e) {
+      currentPage = e.data;
+      updateUI();
+    });
+  }
+
+  function exitFlip() {
+    if (pageFlip) { try { pageFlip.destroy(); } catch (e) {} pageFlip = null; }
+    flipMount.innerHTML = '';
   }
 
   // --- In-book full-text search (zero dependency) ---
@@ -5773,6 +5838,8 @@ function initReader(flow) {
     if (matchPtr < 0 || matchPtr >= matches.length) return;
     var re = accentRe(searchInput.value.trim()); if (!re) return;
     var pg = matches[matchPtr].page;
+    // Highlights live on the real pages; leave the flipbook overlay to show them.
+    if (mode === 'flip') setMode('paginated');
     goToPage(pg);
     highlightPage(pg, re);
     var occ = 0; for (var j = 0; j < matchPtr; j++) { if (matches[j].page === pg) occ++; }
