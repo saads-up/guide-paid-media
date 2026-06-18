@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
 <title>Claude pour le Paid Media : Le guide complet &ndash; Ad&rsquo;s up Consulting</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231e3d4e'/%3E%3Ctext x='16' y='22' font-family='Poppins,Arial,sans-serif' font-size='18' font-weight='800' fill='white' text-anchor='middle'%3EC%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1502,6 +1503,17 @@ body.mode-flip .pagedjs_page.flip-prev { transform-origin: right center; animati
 .reader-search-empty { padding: 14px 12px; font-size: 12px; color: #9ca3af; }
 .search-hl { background: #ffe08a; color: inherit; border-radius: 2px; }
 .search-hl.current { background: #ffb347; box-shadow: 0 0 0 2px rgba(168,120,88,0.55); }
+
+/* Mobile: compact toolbar; autoFit + pinch handle zoom, swipe handles paging */
+@media (max-width: 640px) {
+  .reader-brand-title { display: none; }
+  .reader-zoom-wrap { display: none; }
+  .reader-toolbar { padding-left: 8px; padding-right: 8px; }
+  .reader-controls { gap: 3px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .reader-controls::-webkit-scrollbar { display: none; }
+  .reader-sep { margin: 0 1px; }
+  .reader-search { top: 52px; right: 8px; left: 8px; width: auto; max-width: none; }
+}
 
 /* Zoom transform on pages */
 .reader-canvas {
@@ -5301,8 +5313,12 @@ function initReader(flow) {
 
   // --- State ---
   let currentPage = 0;
-  let mode = 'paginated'; // 'paginated' | 'spread' | 'scroll'
+  let mode = 'paginated'; // 'paginated' | 'spread' | 'scroll' | 'flip'
   let zoom = 0.75;
+
+  // On a narrow screen (phones), two A4 pages never fit: spread/flip collapse to a single page.
+  function isNarrow() { return window.innerWidth < 760; }
+  function twoUp() { return (mode === 'spread' || mode === 'flip') && !isNarrow(); }
 
   // --- DOM refs ---
   const pageInfo = document.getElementById('pageInfo');
@@ -5329,7 +5345,7 @@ function initReader(flow) {
     autoFit();
     bindEvents();
     window.addEventListener('resize', function() {
-      requestAnimationFrame(autoFit);
+      requestAnimationFrame(function() { goToPage(currentPage); autoFit(); });
     });
   }
 
@@ -5351,7 +5367,7 @@ function initReader(flow) {
     var pageW = 794;
     var pageH = 1123;
     var fitZoom;
-    if (mode === 'spread' || mode === 'flip') {
+    if (twoUp()) {
       fitZoom = Math.min(viewportH / pageH, viewportW / (pageW * 2 + 4));
     } else {
       fitZoom = Math.min(viewportH / pageH, viewportW / pageW);
@@ -5372,7 +5388,7 @@ function initReader(flow) {
       p.classList.remove('active-page', 'active-page-right');
     });
 
-    if (mode === 'spread' || mode === 'flip') {
+    if (twoUp()) {
       var leftIdx = idx % 2 === 0 ? idx : idx - 1;
       var rightIdx = leftIdx + 1;
       if (pages[leftIdx]) pages[leftIdx].classList.add('active-page');
@@ -5391,19 +5407,19 @@ function initReader(flow) {
   }
 
   function nextPage() {
-    var step = (mode === 'spread' || mode === 'flip') ? 2 : 1;
+    var step = twoUp() ? 2 : 1;
     goToPage(currentPage + step);
   }
 
   function prevPage() {
-    var step = (mode === 'spread' || mode === 'flip') ? 2 : 1;
+    var step = twoUp() ? 2 : 1;
     goToPage(currentPage - step);
   }
 
   // --- UI Update ---
   function updateUI() {
     var display;
-    if (mode === 'spread' || mode === 'flip') {
+    if (twoUp()) {
       display = '<strong>' + (currentPage + 1) + '-' + Math.min(currentPage + 2, totalPages) + '</strong> / ' + totalPages;
     } else {
       display = '<strong>' + (currentPage + 1) + '</strong> / ' + totalPages;
@@ -5415,7 +5431,7 @@ function initReader(flow) {
 
     // Minimap current
     document.querySelectorAll('.minimap-item').forEach(function(mi, i) {
-      mi.classList.toggle('current', i === currentPage || ((mode === 'spread' || mode === 'flip') && i === currentPage + 1));
+      mi.classList.toggle('current', i === currentPage || (twoUp() && i === currentPage + 1));
     });
   }
 
@@ -5586,6 +5602,22 @@ function initReader(flow) {
     shortcutsOverlay.addEventListener('click', function(e) {
       if (e.target === shortcutsOverlay) shortcutsOverlay.classList.remove('visible');
     });
+
+    // Touch swipe navigation (mobile)
+    var tsX = 0, tsY = 0, tsT = 0;
+    canvas.addEventListener('touchstart', function(e) {
+      if (e.touches.length !== 1) return;
+      tsX = e.touches[0].clientX; tsY = e.touches[0].clientY; tsT = Date.now();
+    }, { passive: true });
+    canvas.addEventListener('touchend', function(e) {
+      if (mode === 'scroll') return;
+      if (Date.now() - tsT > 800) return;
+      var t = e.changedTouches[0];
+      var dx = t.clientX - tsX, dy = t.clientY - tsY;
+      if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+        if (dx < 0) nextPage(); else prevPage();
+      }
+    }, { passive: true });
 
     // Fullscreen change event
     document.addEventListener('fullscreenchange', function() {
