@@ -5689,16 +5689,21 @@ function initReader(flow) {
       clone.style.position = 'fixed'; clone.style.left = '-4000px'; clone.style.top = '0';
       clone.style.width = PW + 'px'; clone.style.height = PH + 'px'; clone.style.background = '#fff';
       document.body.appendChild(clone);
-      return html2canvas(clone, { scale: 1.4, backgroundColor: '#ffffff', logging: false, width: PW, height: PH, windowWidth: PW, windowHeight: PH })
-        .then(function(cv) {
-          clone.remove();
-          var tex = new THREE.CanvasTexture(cv);
-          if (THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
-          tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
-          texCache[idx] = tex;
-          return tex;
-        })
-        .catch(function() { clone.remove(); return null; });
+      var scale = isNarrow() ? 1.0 : 1.4;     // lighter on phones (html2canvas is CPU-heavy)
+      // Race html2canvas against a timeout so a slow/stuck capture never hangs the reader.
+      return new Promise(function(resolve) {
+        var done = false;
+        var to = setTimeout(function() { if (!done) { done = true; try { clone.remove(); } catch (e) {} resolve(null); } }, 9000);
+        html2canvas(clone, { scale: scale, backgroundColor: '#ffffff', logging: false, width: PW, height: PH, windowWidth: PW, windowHeight: PH })
+          .then(function(cv) {
+            if (done) return; done = true; clearTimeout(to); try { clone.remove(); } catch (e) {}
+            var tex = new THREE.CanvasTexture(cv);
+            if (THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
+            tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+            texCache[idx] = tex; resolve(tex);
+          })
+          .catch(function() { if (done) return; done = true; clearTimeout(to); try { clone.remove(); } catch (e) {} resolve(null); });
+      });
     }
 
     var VERT = [
@@ -5862,18 +5867,36 @@ function initReader(flow) {
       busy = true;
       if (hint) { hint.classList.remove('gone'); hint.textContent = 'Préparation…'; }
       if (!renderer) {
-        renderer = new THREE.WebGLRenderer({ canvas: canvasEl, antialias: true, alpha: true });
+        try {
+          renderer = new THREE.WebGLRenderer({ canvas: canvasEl, antialias: true, alpha: true });
+        } catch (e) { busy = false; return false; }
         scene = new THREE.Scene();
         cam = new THREE.OrthographicCamera(-1, 1, 1, -1, -2000, 2000);
         cam.position.z = 600;
       }
       computeSize();
       dir = 1; progress = 0;
-      Promise.all([rasterize(currentPage), rasterize(currentPage + 1)]).then(function() {
-        buildMeshes(); setProgress(0); busy = false;
+      // Safety net: if the first page can't be rasterized in time, never stay stuck on "Préparation…".
+      var failTimer = setTimeout(function() { if (busy) bail(); }, 11000);
+      // Rasterize the CURRENT page first so something shows fast, then the neighbour in the background.
+      rasterize(currentPage).then(function(tex) {
+        if (mode !== 'flip') { clearTimeout(failTimer); busy = false; return; }
+        if (!tex) { clearTimeout(failTimer); bail(); return; }
+        clearTimeout(failTimer); busy = false;
+        buildMeshes(); setProgress(0);
         if (hint) hint.textContent = 'Glissez pour tourner la page';
+        rasterize(currentPage + 1).then(function() {
+          if (mode === 'flip' && !dragging && !animating) { buildMeshes(); setProgress(progress); }
+        });
       });
       return true;
+    }
+
+    function bail() {
+      // Rasterization failed/too slow (typically a weak mobile device): fall back to a reliable mode.
+      busy = false;
+      if (hint) hint.classList.add('gone');
+      setMode(isNarrow() ? 'scroll' : 'spread');
     }
 
     function exit() {
