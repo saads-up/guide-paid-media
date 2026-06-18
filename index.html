@@ -95,6 +95,9 @@ body {
 /* Kill PagedJS's own generated ::after (counter(page)/string()) on the boxes we inject
    real text into, so the injected text is the only content (no parasitic "1"). */
 .rh-book::after, .rh-chapter::after, .rh-folio::after { content: none !important; }
+/* The paged-structure @page already puts a border-bottom on the top margin BOX; ours is on
+   the inner content. Drop the box one so there's a single tidy underline under the text. */
+.pagedjs_margin-top-left, .pagedjs_margin-top-right { border-bottom: none !important; }
 
 /* ═══════════════════════════════════════════════════════════════════════
    STRING-SET - Running headers
