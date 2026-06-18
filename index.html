@@ -5740,15 +5740,18 @@ function initReader(flow) {
     ].join('\n');
 
     function computeSize() {
-      var ow = overlay.clientWidth || window.innerWidth;
-      var oh = overlay.clientHeight || (window.innerHeight - 52);
-      var padV = 26, padH = 18;
+      // Use the LAYOUT viewport (clientWidth/Height) so a transiently-wide child can't inflate the canvas.
+      var de = document.documentElement;
+      var ow = de.clientWidth || window.innerWidth;
+      var oh = (de.clientHeight || window.innerHeight) - 52;   // area below the fixed toolbar
+      var padV = 24, padH = 16;
       pw = Math.min(ow - padH * 2, (oh - padV * 2) / RATIO);
-      pw = Math.max(220, Math.round(pw));
+      pw = Math.max(200, Math.round(pw));
       ph = Math.round(pw * RATIO);
       var dpr = Math.min(window.devicePixelRatio || 1, 2);
       renderer.setPixelRatio(dpr);
-      renderer.setSize(ow, oh, false);
+      renderer.setSize(ow, oh);   // sets BOTH the CSS size and the (dpr-scaled) drawing buffer
+      if (renderer.outputColorSpace !== undefined && THREE.SRGBColorSpace) renderer.outputColorSpace = THREE.SRGBColorSpace;
       cam.left = -ow / 2; cam.right = ow / 2; cam.top = oh / 2; cam.bottom = -oh / 2;
       cam.updateProjectionMatrix();
     }
